@@ -3,7 +3,6 @@ local server = {}
 local connectedClients = {}
 local characters = {}
 
-local CLIENT_TIMEOUT = 5
 local socket = require('socket')
 
 local function createNewCharacter(key)
@@ -34,7 +33,7 @@ local function createNewClient(data, ip, port)
     connectedClients[clientKey] = newClient
 end
 
-local function handleNewClient(data, ip, port)
+local function clientDataReceived(data, ip, port)
     local clientKey = ip .. ":" .. port
     if connectedClients[clientKey] == nil then
         createNewClient(data, ip, port)
@@ -42,14 +41,6 @@ local function handleNewClient(data, ip, port)
     else
         connectedClients[clientKey].lastSeen = love.timer.getTime()
         return false
-    end
-end
-
-local function cleanupOldClients()
-    for clientKey, clientData in pairs(connectedClients) do
-        if love.timer.getTime() - clientData.lastSeen > CLIENT_TIMEOUT then
-            connectedClients[clientKey] = nil
-        end
     end
 end
 
@@ -65,7 +56,7 @@ end
 
 local playerSpeed = 100
 
-local function sendCharacterData(client)
+local function sendCharacterDataTo(client)
     local packet = ""
     for key, character in pairs(characters) do
         local KeyToSend = tostring(key)
@@ -100,7 +91,7 @@ function server.update(deltaTime)
 
     local data, ip, port = server.udp:receivefrom()
     if data then
-        local isNew = handleNewClient(data, ip, port)
+        local isNew = clientDataReceived(data, ip, port)
         if isNew then
             print("NEW CLIENT")
             server.udp:sendto("CONNECTED SUCCESSFULLY", ip, port)
@@ -122,10 +113,9 @@ function server.update(deltaTime)
             end
         end
     end
-    --cleanupOldClients()
 
-    for key, client in pairs(connectedClients) do
-        sendCharacterData(client)
+    for _, client in pairs(connectedClients) do
+        sendCharacterDataTo(client)
     end
 
     socket.sleep(1 / 60)
